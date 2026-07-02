@@ -266,13 +266,15 @@ function loadCSV() {
     .then(r => r.text())
     .then(parseCSV)
     .catch(err => {
-      document.querySelector('.loading').textContent = 'Error loading CSV: ' + err;
+      const el = document.querySelector('.subtitle') || document.querySelector('h1');
+      if (el) el.textContent = 'Error loading CSV: ' + err;
+      else document.body.innerHTML = '<p style="color:red;padding:20px">Error loading CSV: ' + err + '</p>';
     });
 }
 
 function parseCSV(text) {
   const lines = text.trim().split('\n');
-  const headers = lines[0].split(',').map(h => h.trim());
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
   allData = [];
   for (let i = 1; i < lines.length; i++) {
     const vals = parseCSVLine(lines[i]);
