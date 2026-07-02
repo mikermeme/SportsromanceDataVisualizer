@@ -82,6 +82,17 @@ tr:hover td { background: #22242e; }
 .loading { text-align: center; padding: 60px; color: #8b949e; font-size: 1.1rem; }
 .year-slider { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .year-slider input { flex: 1; min-width: 100px; }
+.page-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-top: 8px; flex-wrap: wrap; gap: 8px;
+}
+.page-btn {
+  background: #1c1e26; color: #c9d1d9; border: 1px solid #2d2f3a;
+  border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 0.82rem;
+}
+.page-btn:hover { background: #2d2f3a; }
+.page-btn:disabled { opacity: 0.4; cursor: default; }
+.page-active { background: #1f3a5f; border-color: #58a6ff; color: #58a6ff; }
 </style>
 </head>
 <body>
@@ -153,7 +164,8 @@ tr:hover td { background: #22242e; }
       <tbody id="book-tbody"></tbody>
     </table>
   </div>
-  <p style="color:#8b949e;font-size:0.78rem;margin-top:8px">
+  <div class="page-bar" id="pagination-nav"></div>
+  <p style="color:#8b949e;font-size:0.78rem;margin-top:4px">
     Showing <span id="row-count">0</span> books. Click column headers to sort.
   </p>
 </div>
@@ -193,6 +205,64 @@ const COLORS = {
 };
 
 let allData = [];
+let currentPage = 1;
+const PAGE_SIZE = 50;
+let sortedData = [];
+
+function renderPage() {
+  const start = (currentPage - 1) * PAGE_SIZE;
+  const page = sortedData.slice(start, start + PAGE_SIZE);
+  const tbody = document.getElementById('book-tbody');
+  tbody.innerHTML = page.map(d => {
+    const conf = d.sport_confidence;
+    const confClass = conf >= 0.7 ? 'conf-high' : conf >= 0.4 ? 'conf-med' : 'conf-low';
+    const methodBadge = d.sport_method === 'genre_tag' ? 'badge-tag' :
+      d.sport_method === 'keyword' ? 'badge-keyword' : 'badge-combo';
+    return `<tr>
+      <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(d.name)}</td>
+      <td>${d.pub_year || '-'}</td>
+      <td><span class="color-dot" style="background:${COLORS[d.sport_primary] || '#666'}"></span>${d.sport_primary}</td>
+      <td>${d.star_rating ? d.star_rating.toFixed(2) : '-'}</td>
+      <td>${d.num_ratings ? d.num_ratings.toLocaleString() : '-'}</td>
+      <td><span class="badge ${methodBadge}">${d.sport_method}</span></td>
+      <td class="${confClass}">${conf.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('row-count').textContent = sortedData.length;
+  updatePaginationControls();
+}
+
+function updatePaginationControls() {
+  const total = sortedData.length;
+  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+  if (currentPage > totalPages) currentPage = totalPages;
+  const nav = document.getElementById('pagination-nav');
+  const start = (currentPage - 1) * PAGE_SIZE + 1;
+  const end = Math.min(currentPage * PAGE_SIZE, total);
+  let html = `<span style="color:#8b949e;font-size:0.82rem">Showing ${start}–${end} of ${total}</span>
+    <div style="display:flex;gap:4px">`;
+  html += `<button class="page-btn" onclick="goPage(1)" ${currentPage <= 1 ? 'disabled' : ''}>&#171;</button>`;
+  html += `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>&#8249;</button>`;
+
+  let pStart = Math.max(1, currentPage - 2);
+  let pEnd = Math.min(totalPages, currentPage + 2);
+  if (pEnd - pStart < 4) {
+    if (pStart === 1) pEnd = Math.min(totalPages, pStart + 4);
+    else pStart = Math.max(1, pEnd - 4);
+  }
+  for (let p = pStart; p <= pEnd; p++) {
+    html += `<button class="page-btn ${p === currentPage ? 'page-active' : ''}" onclick="goPage(${p})">${p}</button>`;
+  }
+  html += `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''}>&#8250;</button>`;
+  html += `<button class="page-btn" onclick="goPage(${totalPages})" ${currentPage >= totalPages ? 'disabled' : ''}>&#187;</button>`;
+  html += '</div>';
+  nav.innerHTML = html;
+}
+
+function goPage(p) {
+  currentPage = p;
+  renderPage();
+}
 
 function loadCSV() {
   fetch('sports_romance_enriched.csv')
@@ -275,6 +345,7 @@ function getFilteredData() {
 }
 
 function applyFilters() {
+  currentPage = 1;
   const data = getFilteredData();
   document.getElementById('year-label').textContent =
     `${document.getElementById('year-min').value}–${document.getElementById('year-max').value}`;
@@ -454,47 +525,30 @@ function buildTrendChart(data, sportLabels, colors) {
 }
 
 function updateTable(data) {
-  const tbody = document.getElementById('book-tbody');
-  const sorted = [...data].sort((a, b) => (b.num_ratings || 0) - (a.num_ratings || 0));
-  tbody.innerHTML = sorted.map(d => {
-    const conf = d.sport_confidence;
-    const confClass = conf >= 0.7 ? 'conf-high' : conf >= 0.4 ? 'conf-med' : 'conf-low';
-    const methodBadge = d.sport_method === 'genre_tag' ? 'badge-tag' :
-      d.sport_method === 'keyword' ? 'badge-keyword' : 'badge-combo';
-    return `<tr>
-      <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(d.name)}</td>
-      <td>${d.pub_year || '-'}</td>
-      <td><span class="color-dot" style="background:${COLORS[d.sport_primary] || '#666'}"></span>${d.sport_primary}</td>
-      <td>${d.star_rating ? d.star_rating.toFixed(2) : '-'}</td>
-      <td>${d.num_ratings ? d.num_ratings.toLocaleString() : '-'}</td>
-      <td><span class="badge ${methodBadge}">${d.sport_method}</span></td>
-      <td class="${confClass}">${conf.toFixed(2)}</td>
-    </tr>`;
-  }).join('');
+  sortedData = [...data];
+  currentPage = 1;
 
-  // Table sorting
+  // Attach sort handlers to headers (sorts the full dataset, resets to page 1)
   document.querySelectorAll('#book-table th').forEach(th => {
     th.onclick = () => {
       const key = th.dataset.sort;
-      const tbody = document.getElementById('book-tbody');
-      const rows = Array.from(tbody.querySelectorAll('tr'));
       const ascending = th.dataset.asc !== '1';
       th.dataset.asc = ascending ? '1' : '0';
-      rows.sort((a, b) => {
-        let av = a.cells[th.cellIndex].textContent;
-        let bv = b.cells[th.cellIndex].textContent;
-        if (key === 'num_ratings' || key === 'pub_year' || key === 'star_rating' || key === 'sport_confidence') {
+      sortedData.sort((a, b) => {
+        let av = a[key], bv = b[key];
+        if (key === 'num_ratings' || key === 'star_rating' || key === 'sport_confidence') {
           av = parseFloat(av) || 0;
           bv = parseFloat(bv) || 0;
         }
-        if (typeof av === 'string') {
-          return ascending ? av.localeCompare(bv) : bv.localeCompare(av);
-        }
+        if (typeof av === 'string') return ascending ? av.localeCompare(bv) : bv.localeCompare(av);
         return ascending ? av - bv : bv - av;
       });
-      rows.forEach(r => tbody.appendChild(r));
+      currentPage = 1;
+      renderPage();
     };
   });
+
+  renderPage();
 }
 
 function updateParadox(data) {
