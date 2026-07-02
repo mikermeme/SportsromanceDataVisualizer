@@ -33,7 +33,9 @@ h1 { font-size: 1.8rem; margin-bottom: 4px; color: #f0f2f5; }
 .chart-card h2 { font-size: 0.95rem; color: #c9d1d9; margin-bottom: 12px; }
 .chart-card.full-width { grid-column: 1 / -1; }
 .chart-card.wide { grid-column: 1 / -1; }
+.chart-card.bar-chart { overflow-y: auto; }
 canvas { max-height: 400px; }
+.chart-card.bar-chart canvas { height: 400px !important; max-height: none; }
 .table-wrapper { overflow-x: auto; }
 table {
   width: 100%; border-collapse: collapse; font-size: 0.82rem;
@@ -127,11 +129,11 @@ tr:hover td { background: #22242e; }
 </div>
 
 <div class="chart-grid">
-  <div class="chart-card">
+  <div class="chart-card bar-chart">
     <h2>📊 Book Count per Sport</h2>
     <canvas id="countChart"></canvas>
   </div>
-  <div class="chart-card">
+  <div class="chart-card bar-chart">
     <h2>⭐ Median Ratings per Sport</h2>
     <canvas id="ratingChart"></canvas>
   </div>
@@ -141,18 +143,7 @@ tr:hover td { background: #22242e; }
   </div>
 </div>
 
-<div class="hockey-paradox">
-  <h2>🏆 The "Hockey Paradox"</h2>
-  <p id="paradox-text">Loading...</p>
-</div>
-
-<div class="hockey-paradox" style="margin-bottom:16px">
-  <h2>📚 Data Note: Publication Year</h2>
-  <p>The <code>pub_year</code> in this dataset comes from Goodreads. A sample of the 400 most-rated books was cross-checked against the <a href="https://openlibrary.org/" style="color:#58a6ff">Open Library API</a> (which returns first-publish dates from library records). <strong>No systematic discrepancies were found</strong> — the Goodreads publication year is the actual book publication date, not the review posting date. The 2016 peak and post-2017 drop visible in the trend chart is a real phenomenon, not a data artifact.</p>
-  <p style="margin-top:4px;font-size:0.78rem;color:#6b7280">Source: 400 Open Library queries via <code>/search.json?q=title+author</code>, validated with word-overlap matching (threshold ≥50%).</p>
-</div>
-
-<div class="chart-card full-width">
+<div class="chart-card full-width" style="margin-bottom:16px">
   <h2>📋 Book Browser — <span id="browser-sport-label">All Sports</span></h2>
   <div class="table-wrapper">
     <table id="book-table">
@@ -437,7 +428,7 @@ function updateCharts(data) {
     options: {
       indexAxis: 'y',
       responsive: true,
-      maintainAspectRatio: true,
+      maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
         x: { grid: { color: '#22242e' }, ticks: { color: '#8b949e' } },
@@ -461,7 +452,7 @@ function updateCharts(data) {
     options: {
       indexAxis: 'y',
       responsive: true,
-      maintainAspectRatio: true,
+      maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
         x: {
@@ -607,5 +598,16 @@ function escHtml(s) {
 
 loadCSV();
 </script>
+
+<div class="hockey-paradox">
+  <h2>🏆 The "Hockey Paradox"</h2>
+  <p id="paradox-text">Loading...</p>
+</div>
+
+<div class="hockey-paradox" style="margin-bottom:16px">
+  <h2>📚 Data Note: Publication Year</h2>
+  <p>The <code>pub_year</code> in this dataset comes from Goodreads. A sample of the 400 most-rated books was cross-checked against the <a href="https://openlibrary.org/" style="color:#58a6ff">Open Library API</a> (which returns first-publish dates from library records). <strong>No systematic discrepancies were found</strong> — the Goodreads publication year is the actual book publication date, not the review posting date. The 2016 peak and post-2017 drop visible in the trend chart is a real phenomenon, not a data artifact.</p>
+  <p style="margin-top:4px;font-size:0.78rem;color:#6b7280">Source: 400 Open Library queries via <code>/search.json?q=title+author</code>, validated with word-overlap matching (threshold ≥50%).</p>
+</div>
 </body>
 </html>
