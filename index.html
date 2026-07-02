@@ -150,6 +150,7 @@ tr:hover td { background: #22242e; }
       <thead>
         <tr>
           <th data-sort="name">Title</th>
+          <th data-sort="author">Author</th>
           <th data-sort="pub_year">Year</th>
           <th data-sort="sport_primary">Sport</th>
           <th data-sort="star_rating">Rating</th>
@@ -217,6 +218,7 @@ function renderPage() {
       d.sport_method === 'keyword' ? 'badge-keyword' : 'badge-combo';
     return `<tr>
       <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(d.name)}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(d.author.replace(/[[\]"]/g, ''))}</td>
       <td>${d.pub_year || '-'}</td>
       <td><span class="color-dot" style="background:${COLORS[d.sport_primary] || '#666'}"></span>${d.sport_primary}</td>
       <td>${d.star_rating ? d.star_rating.toFixed(2) : '-'}</td>
