@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sports Romance — Genre Analysis Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #0f1117;
+  color: #e1e4e8;
+  padding: 24px;
+}
+h1 { font-size: 1.8rem; margin-bottom: 4px; color: #f0f2f5; }
+.subtitle { color: #8b949e; margin-bottom: 24px; font-size: 0.9rem; }
+.summary-strip {
+  display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px;
+}
+.stat-card {
+  background: #1c1e26; border-radius: 8px; padding: 16px 24px; flex: 1; min-width: 120px;
+  border: 1px solid #2d2f3a;
+}
+.stat-card .num { font-size: 1.6rem; font-weight: 700; color: #58a6ff; }
+.stat-card .label { font-size: 0.75rem; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; }
+.chart-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;
+}
+.chart-card {
+  background: #1c1e26; border-radius: 8px; padding: 16px; border: 1px solid #2d2f3a;
+}
+.chart-card h2 { font-size: 0.95rem; color: #c9d1d9; margin-bottom: 12px; }
+.chart-card.full-width { grid-column: 1 / -1; }
+.chart-card.wide { grid-column: 1 / -1; }
+canvas { max-height: 400px; }
+.table-wrapper { overflow-x: auto; }
+table {
+  width: 100%; border-collapse: collapse; font-size: 0.82rem;
+}
+th {
+  text-align: left; padding: 8px 10px; border-bottom: 2px solid #2d2f3a;
+  color: #8b949e; font-weight: 600; cursor: pointer; user-select: none;
+  white-space: nowrap;
+}
+th:hover { color: #58a6ff; }
+td { padding: 6px 10px; border-bottom: 1px solid #22242e; }
+tr:hover td { background: #22242e; }
+.color-dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px;
+}
+.conf-high { color: #3fb950; }
+.conf-med { color: #d29922; }
+.conf-low { color: #f85149; }
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.7rem;
+  font-weight: 600;
+}
+.badge-tag { background: #1f3a5f; color: #58a6ff; }
+.badge-keyword { background: #2d4a22; color: #7ee787; }
+.badge-combo { background: #3d2e00; color: #d29922; }
+.filters {
+  display: flex; gap: 12px; align-items: center; margin-bottom: 16px; flex-wrap: wrap;
+}
+.filters label { color: #8b949e; font-size: 0.82rem; }
+.filters select, .filters input {
+  background: #1c1e26; color: #e1e4e8; border: 1px solid #2d2f3a; border-radius: 4px;
+  padding: 4px 8px; font-size: 0.82rem;
+}
+.filters select:focus, .filters input:focus { outline: none; border-color: #58a6ff; }
+.tooltip {
+  position: fixed; background: #1c1e26; border: 1px solid #2d2f3a; border-radius: 6px;
+  padding: 8px 12px; font-size: 0.78rem; pointer-events: none; z-index: 100;
+  display: none; max-width: 300px;
+}
+.hockey-paradox {
+  background: linear-gradient(135deg, #1c1e26, #1a2332); border: 1px solid #2d2f3a;
+  border-radius: 8px; padding: 16px; margin-bottom: 16px;
+}
+.hockey-paradox h2 { color: #c9d1d9; font-size: 0.95rem; margin-bottom: 8px; }
+.hockey-paradox p { color: #8b949e; font-size: 0.82rem; line-height: 1.5; }
+.loading { text-align: center; padding: 60px; color: #8b949e; font-size: 1.1rem; }
+.year-slider { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.year-slider input { flex: 1; min-width: 100px; }
+</style>
+</head>
+<body>
+<h1>🏒 Sports Romance — Genre Analysis</h1>
+<p class="subtitle">Loading <span id="file-name">sports_romance_enriched.csv</span> …</p>
+
+<div class="summary-strip" id="summary-strip"></div>
+
+<div class="filters">
+  <label>Sport: <select id="sport-filter" multiple size="4" style="height:80px">
+    <option value="all" selected>All Sports</option>
+  </select></label>
+  <label>Method: <select id="method-filter">
+    <option value="all">All Methods</option>
+    <option value="genre_tag">Genre Tag</option>
+    <option value="keyword">Keyword</option>
+    <option value="genre_tag+keyword">Combined</option>
+  </select></label>
+  <label>Min confidence:
+    <select id="conf-filter">
+      <option value="0">Any</option>
+      <option value="0.7">≥ 0.7</option>
+      <option value="0.5">≥ 0.5</option>
+      <option value="0.3" selected>≥ 0.3</option>
+    </select>
+  </label>
+  <div class="year-slider">
+    <label>Year: <span id="year-label">2000–2026</span></label>
+    <input type="range" id="year-min" min="1950" max="2026" value="2000">
+    <input type="range" id="year-max" min="1950" max="2026" value="2026">
+  </div>
+</div>
+
+<div class="chart-grid">
+  <div class="chart-card">
+    <h2>📊 Book Count per Sport</h2>
+    <canvas id="countChart"></canvas>
+  </div>
+  <div class="chart-card">
+    <h2>⭐ Median Ratings per Sport</h2>
+    <canvas id="ratingChart"></canvas>
+  </div>
+  <div class="chart-card wide">
+    <h2>📈 Share of New Releases by Year</h2>
+    <canvas id="trendChart"></canvas>
+  </div>
+</div>
+
+<div class="hockey-paradox">
+  <h2>🏆 The "Hockey Paradox"</h2>
+  <p id="paradox-text">Loading...</p>
+</div>
+
+<div class="chart-card full-width">
+  <h2>📋 Book Browser — <span id="browser-sport-label">All Sports</span></h2>
+  <div class="table-wrapper">
+    <table id="book-table">
+      <thead>
+        <tr>
+          <th data-sort="name">Title</th>
+          <th data-sort="pub_year">Year</th>
+          <th data-sort="sport_primary">Sport</th>
+          <th data-sort="star_rating">Rating</th>
+          <th data-sort="num_ratings"># Ratings</th>
+          <th data-sort="sport_method">Method</th>
+          <th data-sort="sport_confidence">Confidence</th>
+        </tr>
+      </thead>
+      <tbody id="book-tbody"></tbody>
+    </table>
+  </div>
+  <p style="color:#8b949e;font-size:0.78rem;margin-top:8px">
+    Showing <span id="row-count">0</span> books. Click column headers to sort.
+  </p>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const COLORS = {
+  'Ice Hockey': '#4fc3f7',
+  'American Football': '#ef5350',
+  'Baseball': '#ffb74d',
+  'MMA / Mixed Martial Arts': '#ab47bc',
+  'Tennis': '#66bb6a',
+  'Soccer': '#8bc34a',
+  'Racing / Motorsport': '#ff7043',
+  'Basketball': '#ff8a65',
+  'Rugby': '#78909c',
+  'Cricket': '#aed581',
+  'Boxing': '#e53935',
+  'Volleyball': '#42a5f5',
+  'Lacrosse': '#ce93d8',
+  'Surfing': '#26c6da',
+  'Figure Skating': '#f48fb1',
+  'Golf': '#81c784',
+  'Rowing': '#5c6bc0',
+  'Swimming / Diving': '#4dd0e1',
+  'Skiing / Snowboarding': '#b0bec5',
+  'Rock Climbing': '#a1887f',
+  'Cycling': '#efebe9',
+  'Gymnastics': '#f06292',
+  'Dance': '#ba68c8',
+  'Track & Field / Running': '#9ccc65',
+  'Cheerleading': '#f48fb1',
+  'Rodeo / Cowboy Sports': '#8d6e63',
+  'Esports / Gaming': '#00e676',
+  'Unresolved': '#666666',
+};
+
+let allData = [];
+
+function loadCSV() {
+  fetch('sports_romance_enriched.csv')
+    .then(r => r.text())
+    .then(parseCSV)
+    .catch(err => {
+      document.querySelector('.loading').textContent = 'Error loading CSV: ' + err;
+    });
+}
+
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const headers = lines[0].split(',').map(h => h.trim());
+  allData = [];
+  for (let i = 1; i < lines.length; i++) {
+    const vals = parseCSVLine(lines[i]);
+    const row = {};
+    headers.forEach((h, idx) => {
+      let v = vals[idx];
+      if (h === 'pub_year') row[h] = parseInt(v) || 0;
+      else if (h === 'star_rating') row[h] = parseFloat(v) || 0;
+      else if (h === 'num_ratings') row[h] = parseInt(v) || 0;
+      else if (h === 'sport_confidence') row[h] = parseFloat(v) || 0;
+      else row[h] = (v || '').replace(/^"|"$/g, '');
+    });
+    allData.push(row);
+  }
+  console.log(`Loaded ${allData.length} rows`);
+  init();
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (ch === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+let charts = {};
+function init() {
+  updateSummary();
+  populateSportFilter();
+  applyFilters();
+  document.getElementById('file-name').textContent =
+    `${allData.length} books loaded`;
+}
+
+function getFilteredData() {
+  const sportSel = document.getElementById('sport-filter');
+  const selected = Array.from(sportSel.selectedOptions).map(o => o.value);
+  const method = document.getElementById('method-filter').value;
+  const confVal = parseFloat(document.getElementById('conf-filter').value);
+  const yMin = parseInt(document.getElementById('year-min').value);
+  const yMax = parseInt(document.getElementById('year-max').value);
+
+  return allData.filter(d => {
+    if (!selected.includes('all') && !selected.includes(d.sport_primary)) return false;
+    if (method !== 'all' && d.sport_method !== method) return false;
+    if (d.sport_confidence < confVal) return false;
+    if (d.pub_year < yMin || d.pub_year > yMax) return false;
+    return true;
+  });
+}
+
+function applyFilters() {
+  const data = getFilteredData();
+  document.getElementById('year-label').textContent =
+    `${document.getElementById('year-min').value}–${document.getElementById('year-max').value}`;
+  updateCharts(data);
+  updateTable(data);
+  updateParadox(data);
+  document.getElementById('row-count').textContent = data.length;
+}
+
+// Event listeners
+['sport-filter', 'method-filter', 'conf-filter', 'year-min', 'year-max'].forEach(id => {
+  document.getElementById(id).addEventListener('change', applyFilters);
+});
+
+function updateSummary() {
+  const data = allData;
+  const sports = new Set(data.map(d => d.sport_primary));
+  const years = data.map(d => d.pub_year).filter(y => y > 0);
+  const avgRating = data.reduce((s, d) => s + d.star_rating, 0) / data.length;
+  const totalRatings = data.reduce((s, d) => s + d.num_ratings, 0);
+
+  document.getElementById('summary-strip').innerHTML = `
+    <div class="stat-card"><div class="num">${data.length.toLocaleString()}</div><div class="label">Sports Romance Books</div></div>
+    <div class="stat-card"><div class="num">${sports.size}</div><div class="label">Sports Identified</div></div>
+    <div class="stat-card"><div class="num">${avgRating.toFixed(2)}</div><div class="label">Avg Star Rating</div></div>
+    <div class="stat-card"><div class="num">${totalRatings.toLocaleString()}</div><div class="label">Total Ratings</div></div>
+    <div class="stat-card"><div class="num">${Math.min(...years)}–${Math.max(...years)}</div><div class="label">Year Range</div></div>
+  `;
+}
+
+function populateSportFilter() {
+  const sel = document.getElementById('sport-filter');
+  const sports = [...new Set(allData.map(d => d.sport_primary))].sort(
+    (a, b) => allData.filter(d => d.sport_primary === b).length -
+             allData.filter(d => d.sport_primary === a).length
+  );
+  sports.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = s;
+    sel.appendChild(opt);
+  });
+}
+
+function updateCharts(data) {
+  // Aggregate per sport
+  const groups = {};
+  data.filter(d => d.sport_primary && d.sport_primary !== 'Unresolved').forEach(d => {
+    const s = d.sport_primary;
+    if (!groups[s]) groups[s] = { count: 0, ratings: [], totalStars: 0, years: {} };
+    groups[s].count++;
+    if (d.num_ratings > 0) groups[s].ratings.push(d.num_ratings);
+    groups[s].totalStars += d.star_rating;
+    const y = d.pub_year;
+    if (y >= 1950 && y <= 2026) {
+      groups[s].years[y] = (groups[s].years[y] || 0) + 1;
+    }
+  });
+
+  const sorted = Object.entries(groups).sort((a, b) => b[1].count - a[1].count);
+  const labels = sorted.map(([s]) => s);
+  const counts = sorted.map(([, g]) => g.count);
+  const medians = sorted.map(([, g]) => {
+    const r = g.ratings.sort((a, b) => a - b);
+    const mid = Math.floor(r.length / 2);
+    return r.length ? (r.length % 2 ? r[mid] : (r[mid - 1] + r[mid]) / 2) : 0;
+  });
+  const avgStars = sorted.map(([, g]) => g.totalStars / g.count);
+  const colors = labels.map(s => COLORS[s] || '#666');
+
+  // Bar chart
+  if (charts.count) charts.count.destroy();
+  charts.count = new Chart(document.getElementById('countChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: counts,
+        backgroundColor: colors,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: '#22242e' }, ticks: { color: '#8b949e' } },
+        y: { grid: { display: false }, ticks: { color: '#c9d1d9', font: { size: 10 } } }
+      }
+    }
+  });
+
+  // Rating chart (horizontal bar)
+  if (charts.rating) charts.rating.destroy();
+  charts.rating = new Chart(document.getElementById('ratingChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: medians,
+        backgroundColor: colors,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          grid: { color: '#22242e' },
+          ticks: { color: '#8b949e', callback: v => v >= 1000 ? (v/1000).toFixed(0) + 'k' : v }
+        },
+        y: { grid: { display: false }, ticks: { color: '#c9d1d9', font: { size: 10 } } }
+      }
+    }
+  });
+
+  // Trend chart (stacked area)
+  buildTrendChart(data, labels, colors);
+}
+
+function buildTrendChart(data, sportLabels, colors) {
+  const allYears = {};
+  data.forEach(d => {
+    if (d.pub_year >= 1950 && d.pub_year <= 2026) allYears[d.pub_year] = true;
+  });
+  const years = Object.keys(allYears).map(Number).sort();
+  if (years.length < 2) {
+    document.getElementById('trendChart').parentElement.innerHTML = '<p style="color:#8b949e;padding:20px">Not enough year data for trend chart.</p>';
+    return;
+  }
+
+  const datasets = sportLabels.map((sport, si) => {
+    const yearly = {};
+    data.filter(d => d.sport_primary === sport).forEach(d => {
+      if (d.pub_year >= 1950 && d.pub_year <= 2026) {
+        yearly[d.pub_year] = (yearly[d.pub_year] || 0) + 1;
+      }
+    });
+    return {
+      label: sport,
+      data: years.map(y => yearly[y] || 0),
+      backgroundColor: colors[si] + '88',
+      borderColor: colors[si],
+      borderWidth: 1,
+      fill: true,
+      tension: 0.3,
+      pointRadius: 0,
+    };
+  });
+
+  const canvas = document.getElementById('trendChart');
+  if (charts.trend) charts.trend.destroy();
+  charts.trend = new Chart(canvas, {
+    type: 'line',
+    data: { labels: years, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#8b949e', boxWidth: 12, padding: 8, font: { size: 10 } } }
+      },
+      scales: {
+        x: { grid: { color: '#22242e' }, ticks: { color: '#8b949e' } },
+        y: {
+          stacked: true, grid: { color: '#22242e' }, ticks: { color: '#8b949e' },
+          title: { display: true, text: 'Books Released', color: '#8b949e' }
+        }
+      }
+    }
+  });
+}
+
+function updateTable(data) {
+  const tbody = document.getElementById('book-tbody');
+  const sorted = [...data].sort((a, b) => (b.num_ratings || 0) - (a.num_ratings || 0));
+  tbody.innerHTML = sorted.map(d => {
+    const conf = d.sport_confidence;
+    const confClass = conf >= 0.7 ? 'conf-high' : conf >= 0.4 ? 'conf-med' : 'conf-low';
+    const methodBadge = d.sport_method === 'genre_tag' ? 'badge-tag' :
+      d.sport_method === 'keyword' ? 'badge-keyword' : 'badge-combo';
+    return `<tr>
+      <td style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(d.name)}</td>
+      <td>${d.pub_year || '-'}</td>
+      <td><span class="color-dot" style="background:${COLORS[d.sport_primary] || '#666'}"></span>${d.sport_primary}</td>
+      <td>${d.star_rating ? d.star_rating.toFixed(2) : '-'}</td>
+      <td>${d.num_ratings ? d.num_ratings.toLocaleString() : '-'}</td>
+      <td><span class="badge ${methodBadge}">${d.sport_method}</span></td>
+      <td class="${confClass}">${conf.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+
+  // Table sorting
+  document.querySelectorAll('#book-table th').forEach(th => {
+    th.onclick = () => {
+      const key = th.dataset.sort;
+      const tbody = document.getElementById('book-tbody');
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      const ascending = th.dataset.asc !== '1';
+      th.dataset.asc = ascending ? '1' : '0';
+      rows.sort((a, b) => {
+        let av = a.cells[th.cellIndex].textContent;
+        let bv = b.cells[th.cellIndex].textContent;
+        if (key === 'num_ratings' || key === 'pub_year' || key === 'star_rating' || key === 'sport_confidence') {
+          av = parseFloat(av) || 0;
+          bv = parseFloat(bv) || 0;
+        }
+        if (typeof av === 'string') {
+          return ascending ? av.localeCompare(bv) : bv.localeCompare(av);
+        }
+        return ascending ? av - bv : bv - av;
+      });
+      rows.forEach(r => tbody.appendChild(r));
+    };
+  });
+}
+
+function updateParadox(data) {
+  const sports = [...new Set(data.filter(d => d.sport_primary && d.sport_primary !== 'Unresolved').map(d => d.sport_primary))];
+  const shares = sports.map(s => {
+    const books = data.filter(d => d.sport_primary === s);
+    const med = median(books.map(b => b.num_ratings).filter(n => n > 0));
+    return { sport: s, count: books.length, share: books.length / data.length * 100, medianRatings: med };
+  }).sort((a, b) => b.count - a.count);
+
+  const hockey = shares.find(s => s.sport === 'Ice Hockey');
+  const fb = shares.find(s => s.sport === 'American Football');
+  const base = shares.find(s => s.sport === 'Baseball');
+  const mma = shares.find(s => s.sport === 'MMA / Mixed Martial Arts');
+
+  let text = `Among ${data.length} sports romance books, **Ice Hockey dominates at ${hockey ? hockey.share.toFixed(1) : '?'}%** `;
+  text += `(${hockey ? hockey.count : '?'} books) with a median of ${formatNum(hockey ? hockey.medianRatings : 0)} ratings per book. `;
+
+  if (fb) {
+    text += `American Football is #2 at ${fb.share.toFixed(1)}% (${fb.count} books, median ${formatNum(fb.medianRatings)} ratings). `;
+  }
+
+  text += `This overrepresentation of hockey in romance fiction contrasts sharply with its real-world US viewership/popularity rank `;
+  text += `(#5 among major sports after football, baseball, basketball, and soccer) — quantifying the **"hockey romance" paradox**.`;
+
+  if (hockey && fb && hockey.medianRatings > fb.medianRatings) {
+    text += ` Notably, hockey romance books also attract more reader engagement (median ${formatNum(hockey.medianRatings)} ratings vs ${formatNum(fb.medianRatings)} for football).`;
+  }
+
+  document.getElementById('paradox-text').innerHTML = text;
+}
+
+function median(arr) {
+  if (!arr.length) return 0;
+  const s = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
+}
+
+function formatNum(n) {
+  if (n >= 1000) return (n / 1000).toFixed(0) + 'k';
+  return n.toFixed(0);
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+loadCSV();
+</script>
+</body>
+</html>
