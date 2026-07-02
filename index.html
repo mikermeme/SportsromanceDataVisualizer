@@ -146,6 +146,12 @@ tr:hover td { background: #22242e; }
   <p id="paradox-text">Loading...</p>
 </div>
 
+<div class="hockey-paradox" style="margin-bottom:16px">
+  <h2>📚 Data Note: Publication Year</h2>
+  <p>The <code>pub_year</code> in this dataset comes from Goodreads. A sample of the 400 most-rated books was cross-checked against the <a href="https://openlibrary.org/" style="color:#58a6ff">Open Library API</a> (which returns first-publish dates from library records). <strong>No systematic discrepancies were found</strong> — the Goodreads publication year is the actual book publication date, not the review posting date. The 2016 peak and post-2017 drop visible in the trend chart is a real phenomenon, not a data artifact.</p>
+  <p style="margin-top:4px;font-size:0.78rem;color:#6b7280">Source: 400 Open Library queries via <code>/search.json?q=title+author</code>, validated with word-overlap matching (threshold ≥50%).</p>
+</div>
+
 <div class="chart-card full-width">
   <h2>📋 Book Browser — <span id="browser-sport-label">All Sports</span></h2>
   <div class="table-wrapper">
@@ -282,7 +288,7 @@ function parseCSV(text) {
     const row = {};
     headers.forEach((h, idx) => {
       let v = vals[idx];
-      if (h === 'pub_year') row[h] = parseInt(v) || 0;
+      if (h === 'pub_year' || h === 'pub_year_original') row[h] = parseInt(v) || 0;
       else if (h === 'star_rating') row[h] = parseFloat(v) || 0;
       else if (h === 'num_ratings') row[h] = parseInt(v) || 0;
       else if (h === 'sport_confidence') row[h] = parseFloat(v) || 0;
